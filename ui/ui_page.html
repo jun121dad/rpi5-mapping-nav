@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DGN · RPI5 MAPPING CONSOLE</title>
+<style>
+:root{
+  --bg:#06090c; --panel:#0a0f14; --line:#17242f; --line2:#22323f;
+  --cyan:#22d3ee; --cyan-soft:rgba(34,211,238,.10); --cyan-line:rgba(34,211,238,.35);
+  --amber:#f5a524; --red:#ef4444; --green:#34d399;
+  --txt:#c3d2df; --dim:#5a6d7f;
+  --mono:"JetBrains Mono","Cascadia Mono","Consolas","SFMono-Regular",monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:
+    radial-gradient(1100px 520px at 50% -8%, #0c1822 0%, transparent 62%),
+    repeating-linear-gradient(0deg, rgba(34,211,238,.030) 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(90deg, rgba(34,211,238,.030) 0 1px, transparent 1px 34px),
+    var(--bg);
+  color:var(--txt); font:13px/1.5 var(--mono); overflow:hidden;
+}
+/* ---------- 顶栏 ---------- */
+header{
+  display:flex; align-items:center; gap:18px; height:46px; padding:0 16px;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg, rgba(34,211,238,.05), transparent);
+}
+.brand{display:flex; align-items:center; gap:8px; font-weight:600; letter-spacing:.12em; color:#e6f4ff; white-space:nowrap}
+.brand .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 1.8s infinite}
+.brand .sep{color:var(--cyan-line);font-weight:400}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.tele{display:flex; gap:0; margin-left:auto; overflow:hidden}
+.tel{display:flex; flex-direction:column; justify-content:center; padding:0 12px; border-left:1px solid var(--line); min-width:74px}
+.tel i{font-style:normal; font-size:9px; letter-spacing:.16em; color:var(--dim)}
+.tel b{font-size:13px; font-weight:600; color:#e8f6ff; white-space:nowrap}
+.tel.clock b{color:var(--cyan)}
+/* ---------- 主体 ---------- */
+main{display:flex; height:calc(100% - 46px); padding:12px; gap:12px}
+.viewport{flex:1; min-width:0; display:flex; flex-direction:column; border:1px solid var(--line); background:var(--panel); position:relative}
+.vp-head,.vp-foot{display:flex; justify-content:space-between; align-items:center; padding:6px 10px; font-size:10px; letter-spacing:.14em; color:var(--dim)}
+.vp-head{border-bottom:1px solid var(--line)}
+.vp-head #vphint{color:var(--green)}
+.vp-foot{border-top:1px solid var(--line)}
+.vp-body{flex:1; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#05080a}
+.vp-body img{max-width:100%; max-height:100%; image-rendering:pixelated; display:block; cursor:crosshair}
+#nosig{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;width:70%;height:60%;border:1px dashed var(--line2);color:var(--dim);letter-spacing:.3em;font-size:16px}
+#nosig span{font-size:11px;letter-spacing:.1em;color:#3f4f5d}
+.cross{position:absolute; left:50%; top:50%; width:34px; height:34px; transform:translate(-50%,-50%); pointer-events:none; opacity:.55}
+.cross:before,.cross:after{content:""; position:absolute; background:var(--cyan)}
+.cross:before{left:50%; top:0; width:1px; height:100%; transform:translateX(-.5px)}
+.cross:after{top:50%; left:0; height:1px; width:100%; transform:translateY(-.5px)}
+.corner{position:absolute; width:16px; height:16px; border:1px solid var(--cyan-line)}
+.corner.tl{left:6px; top:6px; border-right:0; border-bottom:0}
+.corner.tr{right:6px; top:6px; border-left:0; border-bottom:0}
+.corner.bl{left:6px; bottom:6px; border-right:0; border-top:0}
+.corner.br{right:6px; bottom:6px; border-left:0; border-top:0}
+/* ---------- 控制面板 ---------- */
+.panel{width:268px; flex:none; display:flex; flex-direction:column; gap:8px; padding:12px; border:1px solid var(--line); background:var(--panel)}
+.group{display:flex; flex-direction:column; gap:6px}
+.group.row{flex-direction:row}
+.group.row .btn{flex:1}
+.btn{
+  position:relative; padding:9px 10px; border:1px solid var(--line2); background:#0d141a;
+  color:var(--txt); font:12px/1.2 var(--mono); letter-spacing:.06em; cursor:pointer;
+  clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);
+  transition:background .12s,border-color .12s,color .12s,box-shadow .12s;
+}
+.btn:hover{background:var(--cyan-soft); border-color:var(--cyan-line); color:#e9fbff; box-shadow:0 0 0 1px rgba(34,211,238,.12) inset}
+.btn:active{transform:translateY(1px)}
+.btn.primary{border-color:var(--cyan); color:var(--cyan); background:rgba(34,211,238,.07)}
+.btn.primary:hover{background:rgba(34,211,238,.16)}
+.btn.danger{border-color:rgba(239,68,68,.55); color:#ffb4b0}
+.btn.danger:hover{background:rgba(239,68,68,.12)}
+.estop{
+  margin-top:2px; padding:13px; font-size:15px; font-weight:700; letter-spacing:.28em;
+  border-color:var(--red); color:#fff; background:linear-gradient(180deg,#7f1d1d,#5b1414);
+}
+.estop:hover{background:linear-gradient(180deg,#991f1f,#6d1717); box-shadow:0 0 14px rgba(239,68,68,.35)}
+.slider{padding:8px 10px; border:1px solid var(--line); background:#080d12}
+.slider-head{display:flex; align-items:baseline; gap:6px; font-size:10px; letter-spacing:.12em; color:var(--dim)}
+.slider-head b{color:var(--amber); font-size:14px}
+input[type=range]{width:100%; margin-top:6px; -webkit-appearance:none; height:3px; background:linear-gradient(90deg,var(--cyan) 0%,var(--cyan) 45%,#1b2733 45%); outline:0}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;background:var(--cyan);border-radius:0;box-shadow:0 0 8px rgba(34,211,238,.7)}
+#pad{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:2px}
+#pad .btn{padding:12px 0; font-size:14px; text-align:center; user-select:none; touch-action:none}
+.logwrap{flex:1; min-height:70px; display:flex; flex-direction:column; border:1px solid var(--line); background:#05080a}
+.loghead{padding:4px 8px; font-size:9px; letter-spacing:.18em; color:var(--dim); border-bottom:1px solid var(--line)}
+#log{flex:1; overflow:auto; padding:6px 8px; font-size:11px; color:#8fa6b8; white-space:pre-wrap}
+#log .ln{display:block}
+#log .ln:before{content:"» "; color:var(--cyan)}
+/* ---------- 扫描线 ---------- */
+.scanlines{position:fixed; inset:0; pointer-events:none; z-index:9;
+  background:repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px); opacity:.5}
+/* ---------- 状态色 ---------- */
+.ok{color:var(--green)!important}
+.warn{color:var(--amber)!important}
+.bad{color:var(--red)!important}
+.search{display:flex; gap:6px}
+.search input{flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line2); background:#080d12; color:var(--txt); font:12px var(--mono); outline:0}
+.search input:focus{border-color:var(--cyan-line)}
+.search .btn{padding:8px 10px; flex:none}
+.sres{padding:6px 8px; border:1px solid var(--line); background:#05080a; font-size:11px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.sres.ok{color:var(--green); border-color:rgba(52,211,153,.35)}
+.sres.warn{color:var(--amber); border-color:rgba(245,165,36,.35)}
+.sres.bad{color:var(--red); border-color:rgba(239,68,68,.35)}</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="dot"></span>DGN<span class="sep">/</span>RPI5<span class="sep">/</span>MAPPING CONSOLE</div>
+  <div class="tele">
+    <div class="tel"><i>STATE</i><b id="st">--</b></div>
+    <div class="tel"><i>MODE</i><b id="mode">--</b></div>
+    <div class="tel"><i>MAP</i><b id="map">--</b></div>
+    <div class="tel" style="display:none"><i>DETECT</i><b id="det">--</b></div>
+    <div class="tel"><i>BATT</i><b id="bat">--</b></div>
+    <div class="tel"><i>TEMP</i><b id="tmp">--</b></div>
+    <div class="tel"><i>VEL</i><b id="vel">--</b></div>
+    <div class="tel"><i>ODO</i><b id="dist">--</b></div>
+    <div class="tel clock"><i>CLOCK</i><b id="clk">--:--:--</b></div>
+  </div>
+</header>
+
+<main>
+  <section class="viewport">
+    <div class="vp-head"><span>D455F · /SCAN · SLAM_TOOLBOX · NAV2</span><span id="vphint">LIVE</span></div>
+    <div class="vp-body">
+      <img id="img" alt="">
+      <div id="nosig">NO SIGNAL<span>等待「开始建图」</span></div>
+      <div class="cross" id="cross"></div>
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+    </div>
+    <div class="vp-foot"><span>RES 0.05 M/CELL</span><span>FOV 78.8°</span><span style="color:var(--cyan)">◈ 点击地图发送导航目标</span><span>SCALE 1 M</span></div>
+  </section>
+
+  <aside class="panel">
+    <div class="group">
+      <button id="start" class="btn primary">▶ 开始建图</button>
+      <button id="stopb" class="btn danger">■ 停止并保存</button>
+      <button id="save" class="btn">💾 立即存图</button>
+    </div>
+    <div class="group row">
+      <button id="auto" class="btn">🤖 自动探索</button>
+      <button id="man" class="btn">✋ 手动接管</button>
+    </div>
+    <div class="search">
+      <input id="em" type="number" value="10" min="1" max="120" step="1" title="探索时长（分钟）">
+      <span style="font-size:11px;align-self:center;color:#7a8a99;padding:0 6px">分钟</span>
+    </div>
+    <div class="group row">
+      <button id="navresume" class="btn">♻ 恢复导航</button>
+      <button id="navcancel" class="btn">✖ 取消目标</button>
+    </div>
+    <div class="search" style="display:none">
+      <input id="q" type="text" placeholder="找什么？">
+      <button id="go" class="btn primary">🔍</button>
+    </div>
+    <div id="sres" class="sres">待命</div>
+    <div class="slider">
+      <div class="slider-head"><span>速度上限</span><b id="vmax">0.12</b><span>m/s</span></div>
+      <input type="range" id="spd" min="4" max="20" value="12">
+    </div>
+    <div id="pad">
+      <div></div><button class="btn" data-k="w">↑</button><div></div>
+      <button class="btn" data-k="a">←</button><button class="btn" data-k="s">↓</button><button class="btn" data-k="d">→</button>
+    </div>
+    <button id="estop" class="btn estop">STOP</button>
+    <div class="logwrap"><div class="loghead">EVENT LOG</div><div id="log"></div></div>
+  </aside>
+</main>
+<div class="scanlines"></div>
+
+<script>
+let st={}, keys=new Set(), vmax=0.12;
+const $=id=>document.getElementById(id);
+const log=m=>{const d=$('log');const s=document.createElement('span');s.className='ln';s.textContent=new Date().toLocaleTimeString()+' '+m;d.prepend(s);while(d.childElementCount>60)d.lastChild.remove();};
+async function post(u){try{const r=await fetch(u,{method:'POST'});log(await r.text());}catch(e){log('ERR '+e)}}
+$('start').onclick=()=>post('/start');
+$('stopb').onclick=()=>post('/stop');
+$('save').onclick=()=>post('/save');
+$('auto').onclick=()=>{const e=$('em');const m=(e&&e.value!=='')?e.value:10;post('/explore/start?min='+encodeURIComponent(m));};
+$('man').onclick=()=>post('/mode?m=manual');
+$('navresume').onclick=()=>post('/nav/start');
+$('navcancel').onclick=()=>post('/goal/cancel');
+$('go').onclick=()=>{const q=$('q').value.trim(); if(!q) return; fetch('/search?q='+encodeURIComponent(q),{method:'POST'}).then(r=>r.text()).then(t=>log(t));};
+$('q').addEventListener('keydown',e=>{if(e.key==='Enter') $('go').click();});
+$('estop').onclick=()=>post('/estop');
+$('spd').oninput=e=>{vmax=e.target.value/100;$('vmax').textContent=vmax.toFixed(2);};
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();if('wasd'.includes(k)){keys.add(k);e.preventDefault();}});
+addEventListener('keyup',e=>{const k=e.key.toLowerCase();if('wasd'.includes(k)){keys.delete(k);send(0,0);}});
+document.querySelectorAll('#pad button').forEach(b=>{
+  const k=b.dataset.k;
+  const down=e=>{e.preventDefault();keys.add(k);};
+  const up=e=>{keys.delete(k);send(0,0);};
+  b.addEventListener('pointerdown', down);
+  b.addEventListener('pointerup', up);
+  b.addEventListener('pointercancel', up);
+  b.addEventListener('pointerleave', up);
+});
+function send(v,w){fetch('/drive?v='+v+'&w='+w,{method:'POST'}).catch(()=>{});}
+// 安全：窗口失焦或切到后台，立刻清空按键并停车
+function stopAll(){ keys.clear(); send(0,0); }
+addEventListener('blur', stopAll);
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopAll(); });
+addEventListener('pagehide', stopAll);
+setInterval(()=>{
+  if(keys.size===0) return;
+  let v=0,w=0;
+  if(keys.has('w'))v=vmax; if(keys.has('s'))v=-vmax*0.6;
+  if(keys.has('a'))w=0.6; if(keys.has('d'))w=-0.6;
+  send(v.toFixed(3),w.toFixed(3));
+},100);
+setInterval(()=>{$('clk').textContent=new Date().toLocaleTimeString('zh-CN',{hour12:false});},1000);
+$('img').addEventListener('click', ev => {
+  const im = $('img');
+  if (!im.naturalWidth) return;
+  const r = im.getBoundingClientRect();
+  const px = (ev.clientX - r.left) / r.width * im.naturalWidth;
+  const py = (ev.clientY - r.top) / r.height * im.naturalHeight;
+  fetch('/goal?px=' + px.toFixed(1) + '&py=' + py.toFixed(1), {method:'POST'})
+    .then(res => res.text())
+    .then(txt => log(txt === 'ok' ? ('目标已发送 (' + px.toFixed(0) + ',' + py.toFixed(0) + ')') : ('目标失败: ' + txt)))
+    .catch(e => log('目标请求失败 ' + e));
+});
+async function tick(){
+  try{
+    st=await (await fetch('/state')).json();
+    $('st').textContent=st.state;
+    $('st').className=(st.state==='MAPPING'?'ok':(st.state==='ERROR'?'bad':'warn'));
+    $('mode').textContent=(st.mode==='manual'?'MANUAL':'AUTO')+(st.nav_active?' · NAV2':'');
+    $('mode').className=(st.nav_active?'ok':'');
+    $('map').textContent=st.map_w?st.map_w+'×'+st.map_h:'--';
+    const d=st.det||{};
+    const nobj=(st.sem||[]).length;
+    $('det').textContent = d.running ? ((d.fps||0).toFixed(0)+'fps·'+nobj) : 'OFF';
+    $('det').className = d.running ? 'ok' : 'warn';
+    const ex=st.explore||{};
+    if(ex.msg!==undefined){
+      const on=!!ex.enabled;
+      $('sres').textContent = (on?'[EXPLORING]':'[IDLE]')+'  已访:'+(ex.visited||0)+'  黑:'+(ex.black||0)+'  发送:'+(ex.sent||0)+'  失败:'+(ex.fail||0)+'  '+(ex.msg||'');
+      $('sres').className = 'sres ' + (on?'ok':'');
+    }
+    $('bat').textContent=st.battery?st.battery.toFixed(2)+'V':'--';
+    $('bat').className=(st.battery&&st.battery<11.5?'bad':'');
+    $('tmp').textContent=st.temp?st.temp.toFixed(0)+'°C':'--';
+    $('tmp').className=(st.temp&&st.temp>78?'bad':(st.temp&&st.temp>72?'warn':''));
+    $('vel').textContent=st.cmd_v.toFixed(2)+'/'+st.cmd_w.toFixed(2);
+    $('dist').textContent=st.dist.toFixed(2)+'m';
+    if(st.map_w){ $('nosig').style.display='none'; $('cross').style.display='block'; $('img').style.display='block'; $('img').src='/map.png?t='+Date.now(); }
+    else { $('nosig').style.display='flex'; $('cross').style.display='none'; $('img').style.display='none'; }
+    $('vphint').textContent=st.fps&&st.fps.scan>0?('LIVE '+st.fps.scan.toFixed(0)+'HZ'):'NO DATA';
+    $('vphint').className=(st.fps&&st.fps.scan>0?'ok':'bad');
+  }catch(e){ $('st').textContent='OFFLINE'; $('st').className='bad'; }
+}
+log('console ready');
+tick(); setInterval(tick,1000);
+</script>
+</body>
+</html>
