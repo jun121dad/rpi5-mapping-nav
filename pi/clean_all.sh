@@ -34,5 +34,10 @@ else
   echo "    ✓ 进程干净"
 fi
 ss -tln 2>/dev/null | grep -q ":8080" && echo "    ✗ 8080 仍被占用" || echo "    ✓ 8080 已释放"
-echo 88888888 | sudo -S -p '' fuser /dev/ttyACM0 >/dev/null 2>&1 && echo "    ✗ 串口仍被占用" || echo "    ✓ 串口空闲"
+# 检查串口占用（不需要 root：fuser 只读查询，失败时降级为跳过）
+if fuser /dev/ttyACM0 >/dev/null 2>&1 || sudo -n fuser /dev/ttyACM0 >/dev/null 2>&1; then
+  echo "    ✗ 串口仍被占用"
+else
+  echo "    ✓ 串口空闲"
+fi
 awk '{printf "    温度 %.1f C\n", $1/1000}' /sys/class/thermal/thermal_zone0/temp
