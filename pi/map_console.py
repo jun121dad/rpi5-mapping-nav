@@ -56,7 +56,7 @@ S = {
     'fps': {'scan': 0.0, 'odom': 0.0, 'map': 0.0},
     'last_save': '', 'png': None, 'png_ts': 0.0,
     'traj': [],
-    'nav_active': False, 'goal_xy': None, 'sem': [], 'det': {}, 'search': {}, 'explore': {},    # Nav2 是否在跑（跑起来后控制台不再写 /cmd_vel）
+    'nav_active': False, 'goal_xy': None, 'sem': [], 'det': {}, 'search': {}, 'explore': {}, 'view_m': 8.0,    # Nav2 是否在跑（跑起来后控制台不再写 /cmd_vel）
 }
 
 
@@ -464,8 +464,12 @@ class ConsoleNode(Node):
         ox, oy = m.info.origin.position.x, m.info.origin.position.y
         g = np.array(m.data, dtype=np.int16).reshape(h, w)
 
-        sc = 4
-        hw = max(6, int(round(VIEW_M / 2.0 / res)))
+        with L:
+            view_m = float(S.get('view_m', VIEW_M))
+        hw = max(6, int(round(view_m / 2.0 / res)))
+        # 缩放：保持输出约 640px，每像素对应的米数随视野变化
+        sc = max(1, int(round(640.0 / (hw * 2.0))))
+        k = sc / 4.0      # 相对基准(4)的缩放系数，用于标记尺寸
         W = H = hw * 2 * sc
         img = np.full((H, W, 3), 100, dtype=np.uint8)
 
@@ -511,7 +515,7 @@ class ConsoleNode(Node):
 
         # 轨迹（黄）
         for x, y in traj[-3000:]:
-            put(px(x, y), np.array([230, 200, 0], dtype=np.uint8), 1)
+            put(px(x, y), np.array([230, 200, 0], dtype=np.uint8), max(1, int(round(k))))
 
         # 激光点（红）
         if self.scan is not None:
@@ -530,7 +534,7 @@ class ConsoleNode(Node):
                     iw = -qx * ax_ - qy * ay_ - qz * az_
                     rx2 = ix * qw + iw * -qx + iy * -qz - iz * -qy
                     ry2 = iy * qw + iw * -qy + iz * -qx - ix * -qz
-                    put(px(t.x + rx2, t.y + ry2), np.array([255, 60, 60], dtype=np.uint8), 1)
+                    put(px(t.x + rx2, t.y + ry2), np.array([255, 60, 60], dtype=np.uint8), max(1, int(round(k))))
             except Exception:
                 pass
 
@@ -547,7 +551,7 @@ class ConsoleNode(Node):
             except Exception:
                 continue
             col = np.array(SEM_COLORS.get(o.get('cls', ''), (255, 220, 120)), dtype=np.uint8)
-            put((sp[0], sp[1]), col, 3)
+            put((sp[0], sp[1]), col, max(2, int(round(3 * k))))
 
         # 目标点（青色圈 + 十字）
         with L:
@@ -555,16 +559,18 @@ class ConsoleNode(Node):
         if gx_gy:
             gp = px(gx_gy[0], gx_gy[1])
             G = np.array([80, 255, 190], dtype=np.uint8)
-            for i in range(-6, 7):
+            gr = max(4, int(round(6 * k)))
+            gc = max(6, int(round(9 * k)))
+            for i in range(-gr, gr + 1):
                 put((gp[0] + i, gp[1]), G, 0)
                 put((gp[0], gp[1] + i), G, 0)
             for ang in range(0, 360, 12):
                 a_ = math.radians(ang)
-                put((int(gp[0] + 9 * math.cos(a_)), int(gp[1] + 9 * math.sin(a_))), G, 0)
+                put((int(gp[0] + gc * math.cos(a_)), int(gp[1] + gc * math.sin(a_))), G, 0)
 
         # 车（中心点 + 朝向箭头，全部走 px() 保证与地图同向）
         BLUE = np.array([40, 150, 255], dtype=np.uint8)
-        put((W // 2, H // 2), BLUE, 4)
+        put((W // 2, H // 2), BLUE, max(3, int(round(4 * k))))
         tip = px(rx + 0.75 * math.cos(ryaw), ry + 0.75 * math.sin(ryaw))
         steps = max(abs(tip[0] - W // 2), abs(tip[1] - H // 2), 1)
         for i in range(steps + 1):
@@ -776,7 +782,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 .sres{padding:6px 8px; border:1px solid var(--line); background:#05080a; font-size:11px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .sres.ok{color:var(--green); border-color:rgba(52,211,153,.35)}
 .sres.warn{color:var(--amber); border-color:rgba(245,165,36,.35)}
-.sres.bad{color:var(--red); border-color:rgba(239,68,68,.35)}</style>
+.sres.bad{color:var(--red); border-color:rgba(239,68,68,.35)}
+.zoombar{position:absolute; right:10px; top:10px; display:flex; align-items:center; gap:5px; padding:3px 8px; background:rgba(6,10,14,.8); border:1px solid var(--line); font-size:11px; z-index:5}
+.zoombar button{width:22px; height:22px; padding:0; font-size:13px; line-height:1; border:1px solid var(--line2); background:#0b1218; color:var(--txt); cursor:pointer}
+.zoombar button:hover{border-color:var(--cyan-line); color:var(--cyan)}
+.zoombar b{min-width:40px; text-align:center; color:var(--cyan); font-weight:600}</style>
 </head>
 <body>
 <header>
@@ -799,6 +809,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
     <div class="vp-head"><span>D455F · /SCAN · SLAM_TOOLBOX · NAV2</span><span id="vphint">LIVE</span></div>
     <div class="vp-body">
       <img id="img" alt="">
+      <div class="zoombar">
+        <button id="zin" title="放大">＋</button>
+        <b id="zval">8 m</b>
+        <button id="zout" title="缩小">－</button>
+      </div>
       <div id="nosig">NO SIGNAL<span>等待「开始建图」</span></div>
       <div class="cross" id="cross"></div>
       <div class="corner tl"></div><div class="corner tr"></div>
@@ -853,6 +868,13 @@ $('start').onclick=()=>post('/start');
 $('stopb').onclick=()=>post('/stop');
 $('save').onclick=()=>post('/save');
 $('auto').onclick=()=>{const e=$('em');const m=(e&&e.value!=='')?e.value:10;post('/explore/start?min='+encodeURIComponent(m));};
+const ZOOMS=[2,3,4,6,8,12,16,24];
+let zi=ZOOMS.indexOf(8); if(zi<0) zi=4;
+let zoomInit=false;
+function applyZoom(send){ $('zval').textContent=ZOOMS[zi]+' m'; if(send) post('/zoom?m='+ZOOMS[zi]); }
+$('zin').onclick=()=>{ if(zi>0){zi--;} applyZoom(true); };
+$('zout').onclick=()=>{ if(zi<ZOOMS.length-1){zi++;} applyZoom(true); };
+(function(){ const vb=document.querySelector('.vp-body'); if(vb) vb.addEventListener('wheel',e=>{e.preventDefault(); if(e.deltaY<0){if(zi>0)zi--;}else{if(zi<ZOOMS.length-1)zi++;} applyZoom(true);},{passive:false}); })();
 $('man').onclick=()=>post('/mode?m=manual');
 $('navresume').onclick=()=>post('/nav/start');
 $('navcancel').onclick=()=>post('/goal/cancel');
@@ -920,6 +942,7 @@ async function tick(){
     $('tmp').className=(st.temp&&st.temp>78?'bad':(st.temp&&st.temp>72?'warn':''));
     $('vel').textContent=st.cmd_v.toFixed(2)+'/'+st.cmd_w.toFixed(2);
     $('dist').textContent=st.dist.toFixed(2)+'m';
+    if(st.view_m && !zoomInit){ zoomInit=true; const k=ZOOMS.indexOf(Math.round(st.view_m)); if(k>=0){ zi=k; } applyZoom(false); }
     if(st.map_w){ $('nosig').style.display='none'; $('cross').style.display='block'; $('img').style.display='block'; $('img').src='/map.png?t='+Date.now(); }
     else { $('nosig').style.display='flex'; $('cross').style.display='none'; $('img').style.display='none'; }
     $('vphint').textContent=st.fps&&st.fps.scan>0?('LIVE '+st.fps.scan.toFixed(0)+'HZ'):'NO DATA';
@@ -931,7 +954,6 @@ tick(); setInterval(tick,1000);
 </script>
 </body>
 </html>
-
 """
 
 
@@ -962,7 +984,7 @@ class H(BaseHTTPRequestHandler):
                     'cmd_v': S['cmd_v'], 'cmd_w': S['cmd_w'],
                     'fps': S['fps'], 'last_save': S['last_save'],
                     'traj': len(S['traj']), 'nav_active': S['nav_active'],
-                    'manual_age': round(time.time() - S['manual_ts'], 3), 'sem': S.get('sem', []), 'det': S.get('det', {}), 'search': S.get('search', {}), 'explore': S.get('explore', {}),
+                    'manual_age': round(time.time() - S['manual_ts'], 3), 'sem': S.get('sem', []), 'det': S.get('det', {}), 'search': S.get('search', {}), 'explore': S.get('explore', {}), 'view_m': S.get('view_m', VIEW_M),
                     'ticks': S.get('ticks', 0),
                 }
                 mp = S['map']
@@ -1044,6 +1066,15 @@ class H(BaseHTTPRequestHandler):
                 S['mode'] = 'auto'
                 S['nav_active'] = True
             return self._send(200, 'explore %.0f min' % mins)
+        if u.path == '/zoom':
+            try:
+                vm = float(q.get('m', ['8'])[0])
+            except Exception:
+                vm = 8.0
+            vm = max(2.0, min(24.0, vm))
+            with L:
+                S['view_m'] = vm
+            return self._send(200, 'zoom %.1f m' % vm)
         if u.path == '/goal':
             if NODE is None:
                 return self._send(500, 'node not ready')

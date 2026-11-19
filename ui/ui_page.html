@@ -105,7 +105,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 .sres{padding:6px 8px; border:1px solid var(--line); background:#05080a; font-size:11px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .sres.ok{color:var(--green); border-color:rgba(52,211,153,.35)}
 .sres.warn{color:var(--amber); border-color:rgba(245,165,36,.35)}
-.sres.bad{color:var(--red); border-color:rgba(239,68,68,.35)}</style>
+.sres.bad{color:var(--red); border-color:rgba(239,68,68,.35)}
+.zoombar{position:absolute; right:10px; top:10px; display:flex; align-items:center; gap:5px; padding:3px 8px; background:rgba(6,10,14,.8); border:1px solid var(--line); font-size:11px; z-index:5}
+.zoombar button{width:22px; height:22px; padding:0; font-size:13px; line-height:1; border:1px solid var(--line2); background:#0b1218; color:var(--txt); cursor:pointer}
+.zoombar button:hover{border-color:var(--cyan-line); color:var(--cyan)}
+.zoombar b{min-width:40px; text-align:center; color:var(--cyan); font-weight:600}</style>
 </head>
 <body>
 <header>
@@ -128,6 +132,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
     <div class="vp-head"><span>D455F · /SCAN · SLAM_TOOLBOX · NAV2</span><span id="vphint">LIVE</span></div>
     <div class="vp-body">
       <img id="img" alt="">
+      <div class="zoombar">
+        <button id="zin" title="放大">＋</button>
+        <b id="zval">8 m</b>
+        <button id="zout" title="缩小">－</button>
+      </div>
       <div id="nosig">NO SIGNAL<span>等待「开始建图」</span></div>
       <div class="cross" id="cross"></div>
       <div class="corner tl"></div><div class="corner tr"></div>
@@ -182,6 +191,13 @@ $('start').onclick=()=>post('/start');
 $('stopb').onclick=()=>post('/stop');
 $('save').onclick=()=>post('/save');
 $('auto').onclick=()=>{const e=$('em');const m=(e&&e.value!=='')?e.value:10;post('/explore/start?min='+encodeURIComponent(m));};
+const ZOOMS=[2,3,4,6,8,12,16,24];
+let zi=ZOOMS.indexOf(8); if(zi<0) zi=4;
+let zoomInit=false;
+function applyZoom(send){ $('zval').textContent=ZOOMS[zi]+' m'; if(send) post('/zoom?m='+ZOOMS[zi]); }
+$('zin').onclick=()=>{ if(zi>0){zi--;} applyZoom(true); };
+$('zout').onclick=()=>{ if(zi<ZOOMS.length-1){zi++;} applyZoom(true); };
+(function(){ const vb=document.querySelector('.vp-body'); if(vb) vb.addEventListener('wheel',e=>{e.preventDefault(); if(e.deltaY<0){if(zi>0)zi--;}else{if(zi<ZOOMS.length-1)zi++;} applyZoom(true);},{passive:false}); })();
 $('man').onclick=()=>post('/mode?m=manual');
 $('navresume').onclick=()=>post('/nav/start');
 $('navcancel').onclick=()=>post('/goal/cancel');
@@ -249,6 +265,7 @@ async function tick(){
     $('tmp').className=(st.temp&&st.temp>78?'bad':(st.temp&&st.temp>72?'warn':''));
     $('vel').textContent=st.cmd_v.toFixed(2)+'/'+st.cmd_w.toFixed(2);
     $('dist').textContent=st.dist.toFixed(2)+'m';
+    if(st.view_m && !zoomInit){ zoomInit=true; const k=ZOOMS.indexOf(Math.round(st.view_m)); if(k>=0){ zi=k; } applyZoom(false); }
     if(st.map_w){ $('nosig').style.display='none'; $('cross').style.display='block'; $('img').style.display='block'; $('img').src='/map.png?t='+Date.now(); }
     else { $('nosig').style.display='flex'; $('cross').style.display='none'; $('img').style.display='none'; }
     $('vphint').textContent=st.fps&&st.fps.scan>0?('LIVE '+st.fps.scan.toFixed(0)+'HZ'):'NO DATA';
