@@ -236,7 +236,9 @@ $('img').addEventListener('click', ev => {
   const r = im.getBoundingClientRect();
   const px = (ev.clientX - r.left) / r.width * im.naturalWidth;
   const py = (ev.clientY - r.top) / r.height * im.naturalHeight;
-  fetch('/goal?px=' + px.toFixed(1) + '&py=' + py.toFixed(1), {method:'POST'})
+  // 把渲染图的原始尺寸一起传给服务端，保证任意缩放下点击点=导航点
+  fetch('/goal?px=' + px.toFixed(1) + '&py=' + py.toFixed(1)
+        + '&w=' + im.naturalWidth + '&h=' + im.naturalHeight, {method:'POST'})
     .then(res => res.text())
     .then(txt => log(txt === 'ok' ? ('目标已发送 (' + px.toFixed(0) + ',' + py.toFixed(0) + ')') : ('目标失败: ' + txt)))
     .catch(e => log('目标请求失败 ' + e));

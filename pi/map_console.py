@@ -245,8 +245,8 @@ class ConsoleNode(Node):
             with L:
                 rx, ry, ryaw = S['odom']
             yaw = math.atan2(gy - ry, gx - rx) if (abs(gx - rx) + abs(gy - ry)) > 0.05 else ryaw
-        if not self.nav_client.server_is_ready():
-            return 'NAV2_NOT_READY'
+        # 不用 server_is_ready() 预判：多线程执行器下它会误报 False。
+        # 直接发送，拒绝由 _on_goal_response 回调处理。
         goal = NavigateToPose.Goal()
         goal.pose.header.frame_id = 'map'
         goal.pose.header.stamp = self.get_clock().now().to_msg()
@@ -273,7 +273,7 @@ class ConsoleNode(Node):
         if self._nav_handle is None:
             return 'no goal'
         try:
-            self.nav_client.cancel_goal_async(self._nav_handle)
+            self._nav_handle.cancel_goal_async()
             with L:
                 S['goal_xy'] = None
             self._nav_handle = None
@@ -281,11 +281,19 @@ class ConsoleNode(Node):
         except Exception as exc:
             return 'cancel failed: %s' % exc
 
-    def send_nav_goal_px(self, px, py):
+    def send_nav_goal_px(self, px, py, w=None, h=None):
         with L:
             rx, ry, ryaw = S['odom']
-        gx = rx + (px - 320.0) * 0.0125
-        gy = ry - (py - 320.0) * 0.0125
+            view = float(S.get('view_m', VIEW_M))
+        m = self.map
+        res = m.info.resolution if m is not None else 0.05
+        # 与 render() 完全相同的取整规则，保证点击位置与画面像素严格对应
+        hw = max(6, int(round(view / 2.0 / res)))
+        cover = hw * 2 * res              # 画面实际覆盖的米数
+        W = float(w) if (w and w > 0) else 640.0
+        H = float(h) if (h and h > 0) else 640.0
+        gx = rx + (px / W - 0.5) * cover
+        gy = ry - (py / H - 0.5) * cover
         return self.send_nav_goal(gx, gy)
 
     def on_explore(self, m):
@@ -913,7 +921,9 @@ $('img').addEventListener('click', ev => {
   const r = im.getBoundingClientRect();
   const px = (ev.clientX - r.left) / r.width * im.naturalWidth;
   const py = (ev.clientY - r.top) / r.height * im.naturalHeight;
-  fetch('/goal?px=' + px.toFixed(1) + '&py=' + py.toFixed(1), {method:'POST'})
+  // 把渲染图的原始尺寸一起传给服务端，保证任意缩放下点击点=导航点
+  fetch('/goal?px=' + px.toFixed(1) + '&py=' + py.toFixed(1)
+        + '&w=' + im.naturalWidth + '&h=' + im.naturalHeight, {method:'POST'})
     .then(res => res.text())
     .then(txt => log(txt === 'ok' ? ('目标已发送 (' + px.toFixed(0) + ',' + py.toFixed(0) + ')') : ('目标失败: ' + txt)))
     .catch(e => log('目标请求失败 ' + e));
@@ -984,7 +994,7 @@ class H(BaseHTTPRequestHandler):
                     'cmd_v': S['cmd_v'], 'cmd_w': S['cmd_w'],
                     'fps': S['fps'], 'last_save': S['last_save'],
                     'traj': len(S['traj']), 'nav_active': S['nav_active'],
-                    'manual_age': round(time.time() - S['manual_ts'], 3), 'sem': S.get('sem', []), 'det': S.get('det', {}), 'search': S.get('search', {}), 'explore': S.get('explore', {}), 'view_m': S.get('view_m', VIEW_M),
+                    'manual_age': round(time.time() - S['manual_ts'], 3), 'sem': S.get('sem', []), 'det': S.get('det', {}), 'search': S.get('search', {}), 'explore': S.get('explore', {}), 'view_m': S.get('view_m', VIEW_M), 'pose': S.get('odom'), 'goal_xy': S.get('goal_xy'),
                     'ticks': S.get('ticks', 0),
                 }
                 mp = S['map']
@@ -1081,11 +1091,20 @@ class H(BaseHTTPRequestHandler):
             try:
                 px_ = float(q.get('px', ['0'])[0])
                 py_ = float(q.get('py', ['0'])[0])
+                w_ = float(q.get('w', ['0'])[0])
+                h_ = float(q.get('h', ['0'])[0])
             except Exception:
                 return self._send(400, 'bad px/py')
-            r = NODE.send_nav_goal_px(px_, py_)
+            r = NODE.send_nav_goal_px(px_, py_, w_, h_)
             if r == 'NAV2_NOT_READY':
                 return self._send(409, 'Nav2 未就绪：先点「恢复导航」')
+            if r == 'ok':
+                # 点击即导航：自动进入导航模式，控制台停止发零速，交给 Nav2 驱动
+                with L:
+                    S['nav_active'] = True
+                    S['mode'] = 'auto'
+                    S['manual_v'] = S['manual_w'] = 0.0
+                    S['manual_ts'] = 0.0
             return self._send(200, r)
         if u.path == '/goal/cancel':
             if NODE is None:
