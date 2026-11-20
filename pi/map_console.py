@@ -39,6 +39,7 @@ DETECT_ENABLED = True      # 三合一：检测 + 语义地图随栈一起起
 NAV2_CMD = ['ros2', 'launch', 'nav2_bringup', 'navigation_launch.py',
             'use_sim_time:=false',
             'params_file:=/home/pi/config/nav2_d455.yaml',
+            'bond_timeout:=30.0',      # 心跳超时 4s→30s，避免 CPU 抖动直接判死
             'autostart:=True']
 VIEW_M = 8.0            # 视野边长（米），车固定在中心
 AUTOSAVE_SEC = 60.0
@@ -241,6 +242,10 @@ class ConsoleNode(Node):
 
     # --- 导航目标
     def send_nav_goal(self, gx, gy, yaw=None):
+        now_t = time.time()
+        if now_t - getattr(self, '_last_goal_ts', 0.0) < 0.8:
+            return 'TOO_FAST'          # 去抖：短时间内重复点击忽略
+        self._last_goal_ts = now_t
         if yaw is None:
             with L:
                 rx, ry, ryaw = S['odom']
@@ -1098,6 +1103,8 @@ class H(BaseHTTPRequestHandler):
             r = NODE.send_nav_goal_px(px_, py_, w_, h_)
             if r == 'NAV2_NOT_READY':
                 return self._send(409, 'Nav2 未就绪：先点「恢复导航」')
+            if r == 'TOO_FAST':
+                return self._send(429, '点击太快，已忽略（0.8 秒内只认第一次）')
             if r == 'ok':
                 # 点击即导航：自动进入导航模式，控制台停止发零速，交给 Nav2 驱动
                 with L:
