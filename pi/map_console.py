@@ -299,6 +299,20 @@ class ConsoleNode(Node):
         H = float(h) if (h and h > 0) else 640.0
         gx = rx + (px / W - 0.5) * cover
         gy = ry - (py / H - 0.5) * cover
+        # 目标点必须落在已知空闲区域，否则规划必然失败（会触发 Spin 恢复，看着像原地转圈）
+        if m is not None:
+            ox, oy = m.info.origin.position.x, m.info.origin.position.y
+            ci = int((gx - ox) / res)
+            cj = int((gy - oy) / res)
+            if 0 <= ci < m.info.width and 0 <= cj < m.info.height:
+                g = np.array(m.data, dtype=np.int16).reshape(m.info.height, m.info.width)
+                c = int(g[cj, ci])
+                if c < 0:
+                    return 'UNKNOWN_AREA'
+                if c >= 50:
+                    return 'BLOCKED_AREA'
+            else:
+                return 'OUT_OF_MAP'
         return self.send_nav_goal(gx, gy)
 
     def on_explore(self, m):
@@ -1105,6 +1119,12 @@ class H(BaseHTTPRequestHandler):
                 return self._send(409, 'Nav2 未就绪：先点「恢复导航」')
             if r == 'TOO_FAST':
                 return self._send(429, '点击太快，已忽略（0.8 秒内只认第一次）')
+            if r == 'UNKNOWN_AREA':
+                return self._send(409, '该点还未探索（未知区域），请点已建图的白色区域')
+            if r == 'BLOCKED_AREA':
+                return self._send(409, '该点是障碍物，请点白色空闲区域')
+            if r == 'OUT_OF_MAP':
+                return self._send(409, '该点超出地图范围')
             if r == 'ok':
                 # 点击即导航：自动进入导航模式，控制台停止发零速，交给 Nav2 驱动
                 with L:
